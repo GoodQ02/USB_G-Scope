@@ -2,7 +2,7 @@
 
 A lightweight, modern USB topology viewer for Windows — a fresh take on tools like Microsoft USBView and UsbTreeView, built with **WinUI 3** and **.NET 10**.
 
-> **Status:** early development (scaffold). Device enumeration lands in milestone 1.
+> **Status:** early development. USB enumeration works and is exposed through a command-line tool; the WinUI tree view comes next.
 
 ## Goals
 
@@ -30,11 +30,25 @@ The output is `src/UsbGScope.App/bin/x64/Release/net10.0-windows10.0.19041.0/win
 
 > WinUI 3 single-file apps unpack their native runtime to a temporary folder on first launch. This is how the Windows App SDK supports single-file apps; see [Microsoft's docs](https://learn.microsoft.com/windows/apps/package-and-deploy/unpackage-winui-app#single-file-exe).
 
+## Command-line tool
+
+```powershell
+dotnet run --project tools/UsbGScope.Cli -- [--all] [--verbose] [--json] [--mask-serials]
+```
+
+| Flag | Effect |
+| :--- | :--- |
+| `--all` | Include empty ports |
+| `--verbose` | Show serial numbers, instance IDs, and driver details |
+| `--json` | Emit the full snapshot as JSON |
+| `--mask-serials` | Replace serial numbers, so output is safe to share |
+
 ## Layout
 
 ```
-src/UsbGScope.Core/   USB enumeration (Win32 interop) and the topology model
-src/UsbGScope.App/    WinUI 3 desktop app
+src/UsbGScope.Core/    USB enumeration (Win32 interop), descriptor parsing, topology model
+src/UsbGScope.App/     WinUI 3 desktop app
+tools/UsbGScope.Cli/   usbgscope command-line dump (text / JSON)
 ```
 
 ## License
