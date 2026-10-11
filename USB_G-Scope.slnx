@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/UsbGScope.App/UsbGScope.App.csproj" />
+    <Project Path="src/UsbGScope.Core/UsbGScope.Core.csproj" />
+  </Folder>
+</Solution>

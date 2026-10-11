@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="UsbGScope.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="USB_G-Scope">
+
+    <Window.SystemBackdrop>
+        <MicaBackdrop />
+    </Window.SystemBackdrop>
+
+    <Grid RowDefinitions="Auto,*">
+        <!-- Custom title bar area -->
+        <Grid x:Name="AppTitleBar" Height="48" Padding="16,0" ColumnSpacing="12" ColumnDefinitions="Auto,*">
+            <FontIcon Glyph="&#xE88E;" FontSize="16" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="USB_G-Scope" VerticalAlignment="Center"
+                       Style="{StaticResource CaptionTextBlockStyle}" />
+        </Grid>
+
+        <!-- Body: tree on the left, details on the right (populated in later milestones) -->
+        <Grid Grid.Row="1" Padding="16" ColumnSpacing="16" ColumnDefinitions="2*,3*">
+            <Border CornerRadius="8" Padding="16"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="USB topology" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <TextBlock Text="Device enumeration arrives in milestone 1."
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1" CornerRadius="8" Padding="16"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Details" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <TextBlock Text="Select a device to inspect its descriptors, speed, and power."
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
