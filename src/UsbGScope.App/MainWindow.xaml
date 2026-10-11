@@ -20,7 +20,7 @@
         </Grid>
 
         <!-- Toolbar -->
-        <Grid Grid.Row="1" Padding="16,0,16,12" ColumnSpacing="16" ColumnDefinitions="Auto,Auto,*">
+        <Grid Grid.Row="1" Padding="16,0,16,12" ColumnSpacing="16" ColumnDefinitions="Auto,Auto,Auto,*">
             <Button x:Name="RefreshButton" Click="Refresh_Click" ToolTipService.ToolTip="Refresh (F5)">
                 <Button.KeyboardAccelerators>
                     <KeyboardAccelerator Key="F5" />
@@ -31,7 +31,9 @@
                 </StackPanel>
             </Button>
             <CheckBox x:Name="ShowEmptyPorts" Grid.Column="1" Content="Show empty ports" Click="ShowEmptyPorts_Click" />
-            <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+            <CheckBox x:Name="LiveUpdates" Grid.Column="2" Content="Live updates" IsChecked="True" Click="LiveUpdates_Click"
+                      ToolTipService.ToolTip="Refresh automatically when USB devices are connected or removed" />
+            <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
                 <ProgressRing x:Name="Busy" Width="16" Height="16" IsActive="False" />
                 <TextBlock x:Name="SummaryText" VerticalAlignment="Center"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -45,8 +47,11 @@
                 <ColumnDefinition Width="6*" MinWidth="360" />
             </Grid.ColumnDefinitions>
 
-            <InfoBar x:Name="LoadError" Grid.ColumnSpan="2" Severity="Error" IsClosable="True"
-                     Title="Could not read USB devices" />
+            <StackPanel Grid.ColumnSpan="2">
+                <InfoBar x:Name="LoadError" Severity="Error" IsClosable="True"
+                         Title="Could not read USB devices" />
+                <InfoBar x:Name="ChangeBar" Severity="Informational" IsClosable="True" />
+            </StackPanel>
 
             <!-- Device tree -->
             <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="4,8">

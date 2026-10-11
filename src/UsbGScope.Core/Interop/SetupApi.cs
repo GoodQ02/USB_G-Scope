@@ -10,13 +10,20 @@ internal static unsafe class SetupApi
 {
     public readonly record struct InterfaceEntry(string DevicePath, string? InstanceId);
 
-    /// <summary>Returns the device path and owning instance ID of every present interface of the given class.</summary>
-    public static List<InterfaceEntry> GetInterfaces(Guid interfaceClass)
+    /// <summary>
+    /// Returns the device path and owning instance ID of every present interface of the given class,
+    /// optionally limited to one device instance.
+    /// </summary>
+    public static List<InterfaceEntry> GetInterfaces(Guid interfaceClass, string? instanceId = null)
     {
         var result = new List<InterfaceEntry>();
-        nint set = SetupDiGetClassDevs(&interfaceClass, null, 0, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+        nint set = SetupDiGetClassDevs(&interfaceClass, instanceId, 0, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
         if (set == INVALID_HANDLE_VALUE)
+        {
+            if (instanceId is not null)
+                return result;
             throw new Win32Exception(Marshal.GetLastPInvokeError());
+        }
 
         try
         {

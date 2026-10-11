@@ -20,16 +20,17 @@ public sealed class UsbNodeViewModel
         [UsbSpeed.Unknown] = new(Colors.Transparent),
     };
 
-    public UsbNodeViewModel(UsbNode node, bool showEmptyPorts, string key)
+    public UsbNodeViewModel(UsbNode node, bool showEmptyPorts, string key, IReadOnlySet<string>? collapsed = null)
     {
         Node = node;
         Key = key;
         Children = node.Children
             .Select((child, index) => (child, index))
             .Where(c => showEmptyPorts || c.child.Kind != UsbNodeKind.EmptyPort || c.child.Error is not null)
-            .Select(c => new UsbNodeViewModel(c.child, showEmptyPorts, $"{key}/{c.child.PortNumber?.ToString() ?? c.index.ToString()}"))
+            .Select(c => new UsbNodeViewModel(c.child, showEmptyPorts, NodePaths.ChildKey(key, c.child, c.index), collapsed))
             .ToList();
-        IsExpanded = node.Kind is UsbNodeKind.HostController or UsbNodeKind.RootHub or UsbNodeKind.Hub;
+        IsExpanded = node.Kind is UsbNodeKind.HostController or UsbNodeKind.RootHub or UsbNodeKind.Hub
+                     && collapsed?.Contains(key) != true;
 
         string detail = NodePresenter.Subtitle(node);
         Subtitle = node.PortNumber is int port && node.Kind != UsbNodeKind.EmptyPort

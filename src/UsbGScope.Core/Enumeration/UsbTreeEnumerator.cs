@@ -25,7 +25,7 @@ public static class UsbTreeEnumerator
         var controllers = SetupApi.GetInterfaces(HostControllerInterface)
             .Select(entry => BuildController(entry, pnp))
             .ToList();
-        return new UsbSnapshot(DateTimeOffset.Now, controllers);
+        return new DeviceResourceMapper(pnp).Apply(new UsbSnapshot(DateTimeOffset.Now, controllers));
     }
 
     private static UsbNode BuildController(SetupApi.InterfaceEntry entry, PnpDeviceIndex pnp)

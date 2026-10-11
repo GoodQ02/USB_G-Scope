@@ -65,10 +65,21 @@ public static class NodePresenter
         _ => string.Join(" · ", new[]
         {
             node.Device is { } d ? $"{d.VendorId:X4}:{d.ProductId:X4}" : null,
+            ResourceSummary(node.Resources),
             node.Kind == UsbNodeKind.Hub && node.Hub is { } hub ? $"{HubTypeLabel(hub.Type)}, {Ports(hub.PortCount)}" : null,
             node.Pnp?.Description is { } desc && !desc.Equals(node.DisplayName, StringComparison.OrdinalIgnoreCase) ? desc : null,
         }.Where(s => s is not null)),
     };
+
+    /// <summary>"E: F: · COM3", or null when the device has no drive letters or ports.</summary>
+    public static string? ResourceSummary(UsbDeviceResources? resources)
+    {
+        if (resources is null) return null;
+        var parts = new List<string>();
+        if (resources.Drives.Count > 0) parts.Add(string.Join(" ", resources.Drives.Select(d => d.Letter)));
+        if (resources.ComPorts.Count > 0) parts.Add(string.Join(" ", resources.ComPorts));
+        return parts.Count > 0 ? string.Join(" · ", parts) : null;
+    }
 
     /// <summary>Short warning text for the node, or null if nothing needs attention.</summary>
     public static string? Warning(UsbNode node)
@@ -77,6 +88,8 @@ public static class NodePresenter
             return node.Error;
         if (node.Pnp?.ProblemCode is uint code)
             return $"Windows reports a problem with this device (code {code}).";
+        if (node.Resources?.ChildDevices.FirstOrDefault(c => c.ProblemCode is not null) is { } child)
+            return $"Windows reports a problem with \"{child.Description ?? child.InstanceId}\" (code {child.ProblemCode}).";
         if (node.IsSpeedDowngraded)
             return "This device supports SuperSpeed but is running at USB 2.0 speed. Check the cable, port, or hub.";
         return null;
@@ -178,6 +191,7 @@ public static class NodePresenter
         {
             var rows = new List<DetailRow> { new("Instance ID", pnp.InstanceId) };
             AddIf(rows, "Description", pnp.Description);
+            AddIf(rows, "Device class", pnp.ClassName);
             AddIf(rows, "Driver service", pnp.Service);
             AddIf(rows, "Location", pnp.LocationInformation);
             AddIf(rows, "Driver key", pnp.DriverKey);
@@ -185,7 +199,48 @@ public static class NodePresenter
             sections.Add(new("Windows", rows));
         }
 
+        if (node.Resources is { } res)
+        {
+            var rows = new List<DetailRow>();
+            foreach (var drive in res.Drives)
+                rows.Add(new($"Drive {drive.Letter}", DriveLabel(drive)));
+            foreach (var comPort in res.ComPorts)
+                rows.Add(new("Serial port", comPort));
+            if (rows.Count > 0) sections.Add(new("Resources", rows));
+
+            if (res.ChildDevices.Count > 0)
+            {
+                sections.Add(new("Windows devices", res.ChildDevices
+                    .Select(c => new DetailRow(
+                        new string(' ', (c.Depth - 1) * 2) + (c.ClassName ?? "Device"),
+                        (c.Description ?? c.InstanceId) + (c.ProblemCode is uint pc ? $" · problem code {pc}" : "")))
+                    .ToList()));
+            }
+        }
+
         return sections;
+    }
+
+    public static string DriveLabel(UsbDrive drive)
+    {
+        var parts = new List<string>();
+        if (drive.Label is not null) parts.Add(drive.Label);
+        if (drive.FileSystem is not null) parts.Add(drive.FileSystem);
+        if (drive.TotalBytes is long bytes) parts.Add(FormatBytes(bytes));
+        return parts.Count > 0 ? string.Join(" · ", parts) : "No media";
+    }
+
+    public static string FormatBytes(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double value = bytes;
+        int unit = 0;
+        while (value >= 1000 && unit < units.Length - 1)
+        {
+            value /= 1000;
+            unit++;
+        }
+        return unit == 0 ? $"{bytes} B" : $"{value:0.#} {units[unit]}";
     }
 
     private static List<DetailRow> ConfigurationRows(ConfigurationDescriptor c)

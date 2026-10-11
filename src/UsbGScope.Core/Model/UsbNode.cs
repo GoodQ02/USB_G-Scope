@@ -64,6 +64,8 @@ public sealed record UsbNode(
     public UsbDeviceInfo? Device { get; init; }
     public UsbHubInfo? Hub { get; init; }
     public PnpDeviceInfo? Pnp { get; init; }
+    /// <summary>Windows devices, drive letters and COM ports created for this device (Device nodes only).</summary>
+    public UsbDeviceResources? Resources { get; init; }
     public string? Error { get; init; }
 
     /// <summary>
@@ -119,7 +121,27 @@ public sealed record PnpDeviceInfo(
     string? DriverKey,
     string? Service,
     string? LocationInformation,
-    uint? ProblemCode);
+    uint? ProblemCode)
+{
+    /// <summary>Device setup class name (e.g. "USB", "Ports", "DiskDrive").</summary>
+    public string? ClassName { get; init; }
+}
+
+/// <summary>A Windows device node below a USB device (interface function, disk, COM port...).</summary>
+public sealed record PnpChildDevice(string InstanceId, string? Description, string? ClassName, uint? ProblemCode, int Depth);
+
+/// <summary>A mounted volume that lives on a USB disk.</summary>
+public sealed record UsbDrive(string Letter, string? Label, string? FileSystem, long? TotalBytes);
+
+/// <summary>What Windows created for a USB device: child devices, drive letters and COM ports.</summary>
+public sealed record UsbDeviceResources(
+    IReadOnlyList<PnpChildDevice> ChildDevices,
+    IReadOnlyList<UsbDrive> Drives,
+    IReadOnlyList<string> ComPorts)
+{
+    public static readonly UsbDeviceResources Empty = new([], [], []);
+    public bool IsEmpty => ChildDevices.Count == 0 && Drives.Count == 0 && ComPorts.Count == 0;
+}
 
 /// <summary>A full point-in-time capture of the USB topology.</summary>
 public sealed record UsbSnapshot(DateTimeOffset CapturedAt, IReadOnlyList<UsbNode> Controllers)
@@ -147,10 +169,22 @@ public sealed record UsbSnapshot(DateTimeOffset CapturedAt, IReadOnlyList<UsbNod
         if (serial is not null && pnp is not null && pnp.InstanceId.EndsWith(serial, StringComparison.OrdinalIgnoreCase))
             pnp = pnp with { InstanceId = pnp.InstanceId[..^serial.Length] + masked };
 
+        var resources = node.Resources;
+        if (serial is { Length: >= 4 } && resources is not null)
+        {
+            resources = resources with
+            {
+                ChildDevices = resources.ChildDevices
+                    .Select(c => c with { InstanceId = c.InstanceId.Replace(serial, masked, StringComparison.OrdinalIgnoreCase) })
+                    .ToList(),
+            };
+        }
+
         return node with
         {
             Device = node.Device is { SerialNumber: not null } d ? d with { SerialNumber = masked } : node.Device,
             Pnp = pnp,
+            Resources = resources,
             Children = node.Children.Select(Mask).ToList(),
         };
     }

@@ -93,6 +93,8 @@ string Describe(UsbNode n)
             sb.Append(n.DisplayName);
             if (n.Device is { } d)
                 sb.Append($"  {d.VendorId:X4}:{d.ProductId:X4}");
+            if (UsbGScope.Core.Presentation.NodePresenter.ResourceSummary(n.Resources) is { } res)
+                sb.Append($"  [{res}]");
             sb.Append($"  {SpeedLabel(n.Speed)}");
             if (n.IsSpeedDowngraded)
                 sb.Append(" ⚠ SuperSpeed-capable");
@@ -140,6 +142,9 @@ IEnumerable<string> Details(UsbNode n)
         yield return $"Instance: {p.InstanceId}";
         if (p.Service is not null) yield return $"Service: {p.Service}";
     }
+    foreach (var child in n.Resources?.ChildDevices ?? [])
+        yield return $"{new string(' ', (child.Depth - 1) * 2)}└ {child.ClassName ?? "Device"}: {child.Description ?? child.InstanceId}"
+                     + (child.ProblemCode is uint pc ? $" ⚠ problem code {pc}" : "");
 }
 
 static string PortTags(UsbPortInfo? p)

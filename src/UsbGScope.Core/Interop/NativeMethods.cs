@@ -90,4 +90,43 @@ internal static unsafe partial class NativeMethods
     public static partial bool DeviceIoControl(
         SafeFileHandle device, uint ioControlCode, void* inBuffer, uint inBufferSize,
         void* outBuffer, uint outBufferSize, uint* bytesReturned, nint overlapped);
+
+    // ---- Device tree walking (cfgmgr32) ----
+
+    public const uint SPDRP_CLASS = 0x07;
+    public const uint FILE_SHARE_READ = 0x00000001;
+    public const int MAX_DEVICE_ID_LEN = 200;
+
+    [LibraryImport("cfgmgr32.dll")]
+    public static partial uint CM_Get_Child(uint* child, uint devInst, uint flags);
+
+    [LibraryImport("cfgmgr32.dll")]
+    public static partial uint CM_Get_Sibling(uint* sibling, uint devInst, uint flags);
+
+    // ---- Hot-plug notifications (cfgmgr32, Windows 8+) ----
+
+    public const uint CM_NOTIFY_FILTER_FLAG_ALL_INTERFACE_CLASSES = 0x00000001;
+    public const uint CM_NOTIFY_FILTER_TYPE_DEVICEINTERFACE = 0;
+    public const uint CM_NOTIFY_ACTION_DEVICEINTERFACEARRIVAL = 0;
+    public const uint CM_NOTIFY_ACTION_DEVICEINTERFACEREMOVAL = 1;
+
+    /// <summary>CM_NOTIFY_FILTER: 16-byte header + union (largest member: WCHAR[200]) = 416 bytes.</summary>
+    [StructLayout(LayoutKind.Explicit, Size = 416)]
+    public struct CM_NOTIFY_FILTER
+    {
+        [FieldOffset(0)] public uint cbSize;
+        [FieldOffset(4)] public uint Flags;
+        [FieldOffset(8)] public uint FilterType;
+        [FieldOffset(12)] public uint Reserved;
+        [FieldOffset(16)] public Guid ClassGuid;
+    }
+
+    [LibraryImport("cfgmgr32.dll")]
+    public static partial uint CM_Register_Notification(
+        CM_NOTIFY_FILTER* filter, nint context,
+        delegate* unmanaged[Stdcall]<nint, nint, uint, nint, uint, uint> callback,
+        nint* notifyContext);
+
+    [LibraryImport("cfgmgr32.dll")]
+    public static partial uint CM_Unregister_Notification(nint notifyContext);
 }

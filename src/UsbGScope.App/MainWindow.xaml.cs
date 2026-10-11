@@ -11,9 +11,15 @@ namespace UsbGScope.App;
 
 public sealed partial class MainWindow : Window
 {
+    private static readonly TimeSpan ChangeBarDuration = TimeSpan.FromSeconds(6);
+
     private UsbSnapshot? _snapshot;
     private UsbNodeViewModel? _selected;
     private bool _refreshing;
+    private bool _refreshPending;
+    private UsbChangeWatcher? _watcher;
+    private readonly HashSet<string> _collapsed = new(StringComparer.Ordinal);
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _changeBarTimer;
 
     public MainWindow()
     {
@@ -23,13 +29,50 @@ public sealed partial class MainWindow : Window
         SetTitleBar(AppTitleBar);
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1280, 820));
 
+        _changeBarTimer = DispatcherQueue.CreateTimer();
+        _changeBarTimer.Interval = ChangeBarDuration;
+        _changeBarTimer.IsRepeating = false;
+        _changeBarTimer.Tick += (_, _) => ChangeBar.IsOpen = false;
+
+        Closed += (_, _) => StopWatcher();
+        StartWatcher();
         _ = RefreshAsync();
+    }
+
+    private void StartWatcher()
+    {
+        if (_watcher is not null)
+            return;
+        try
+        {
+            _watcher = new UsbChangeWatcher();
+            _watcher.Changed += (_, _) => DispatcherQueue.TryEnqueue(() =>
+            {
+                if (_watcher is not null)
+                    _ = RefreshAsync();
+            });
+        }
+        catch (Exception ex)
+        {
+            LiveUpdates.IsChecked = false;
+            ShowChange("Live updates unavailable", ex.Message, InfoBarSeverity.Warning);
+        }
+    }
+
+    private void StopWatcher()
+    {
+        _watcher?.Dispose();
+        _watcher = null;
     }
 
     private async Task RefreshAsync()
     {
         if (_refreshing)
+        {
+            // A change arrived mid-capture; capture again afterwards so the tree never shows stale state.
+            _refreshPending = true;
             return;
+        }
 
         _refreshing = true;
         Busy.IsActive = true;
@@ -40,10 +83,14 @@ public sealed partial class MainWindow : Window
             var snapshot = await Task.Run(UsbTreeEnumerator.Capture);
             stopwatch.Stop();
 
+            var previous = _snapshot;
             _snapshot = snapshot;
             LoadError.IsOpen = false;
             RebuildTree();
             SummaryText.Text = Summarize(snapshot, stopwatch.ElapsedMilliseconds);
+
+            if (previous is not null && NodePaths.Diff(previous, snapshot) is { IsEmpty: false } diff)
+                AnnounceDiff(diff, snapshot.CapturedAt);
         }
         catch (Exception ex)
         {
@@ -56,6 +103,39 @@ public sealed partial class MainWindow : Window
             RefreshButton.IsEnabled = true;
             _refreshing = false;
         }
+
+        if (_refreshPending)
+        {
+            _refreshPending = false;
+            await RefreshAsync();
+        }
+    }
+
+    private void AnnounceDiff(NodePaths.SnapshotDiff diff, DateTimeOffset at)
+    {
+        var lines = new List<string>();
+        if (diff.Added.Count > 0)
+            lines.Add("Connected: " + string.Join(", ", diff.Added.Select(n => n.DisplayName)));
+        if (diff.Removed.Count > 0)
+            lines.Add("Disconnected: " + string.Join(", ", diff.Removed.Select(n => n.DisplayName)));
+
+        string title = (diff.Added.Count, diff.Removed.Count) switch
+        {
+            ( > 0, 0) => "Device connected",
+            (0, > 0) => "Device removed",
+            _ => "Devices changed",
+        };
+        ShowChange($"{title} · {at.LocalDateTime:T}", string.Join("\n", lines), InfoBarSeverity.Informational);
+    }
+
+    private void ShowChange(string title, string message, InfoBarSeverity severity)
+    {
+        ChangeBar.Title = title;
+        ChangeBar.Message = message;
+        ChangeBar.Severity = severity;
+        ChangeBar.IsOpen = true;
+        _changeBarTimer.Stop();
+        _changeBarTimer.Start();
     }
 
     private void RebuildTree()
@@ -66,7 +146,7 @@ public sealed partial class MainWindow : Window
         string? selectedKey = _selected?.Key;
         bool showEmpty = ShowEmptyPorts.IsChecked == true;
         var roots = _snapshot.Controllers
-            .Select((controller, index) => new UsbNodeViewModel(controller, showEmpty, $"c{index}"))
+            .Select((controller, index) => new UsbNodeViewModel(controller, showEmpty, NodePaths.ControllerKey(index), _collapsed))
             .ToList();
         DeviceTree.ItemsSource = roots;
 
@@ -141,6 +221,19 @@ public sealed partial class MainWindow : Window
 
     private void ShowEmptyPorts_Click(object sender, RoutedEventArgs e) => RebuildTree();
 
+    private void LiveUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        if (LiveUpdates.IsChecked == true)
+        {
+            StartWatcher();
+            _ = RefreshAsync(); // catch up on anything that changed while paused
+        }
+        else
+        {
+            StopWatcher();
+        }
+    }
+
     private void DeviceTree_SelectionChanged(TreeView sender, TreeViewSelectionChangedEventArgs args)
     {
         if (args.AddedItems.FirstOrDefault() is UsbNodeViewModel vm)
@@ -150,13 +243,19 @@ public sealed partial class MainWindow : Window
     private void DeviceTree_Expanding(TreeView sender, TreeViewExpandingEventArgs args)
     {
         if (args.Item is UsbNodeViewModel vm)
+        {
             vm.IsExpanded = true;
+            _collapsed.Remove(vm.Key);
+        }
     }
 
     private void DeviceTree_Collapsed(TreeView sender, TreeViewCollapsedEventArgs args)
     {
         if (args.Item is UsbNodeViewModel vm)
+        {
             vm.IsExpanded = false;
+            _collapsed.Add(vm.Key);
+        }
     }
 
     private async void Copy_Click(object sender, RoutedEventArgs e)
