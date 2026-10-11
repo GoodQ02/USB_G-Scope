@@ -11,7 +11,50 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid RowDefinitions="Auto,Auto,*">
+    <Grid x:Name="RootGrid" RowDefinitions="Auto,Auto,*,Auto">
+        <Grid.Resources>
+            <DataTemplate x:Key="NodeRowTemplate" x:DataType="vm:UsbNodeViewModel">
+                <Grid ColumnSpacing="10" Padding="0,5,14,5" Opacity="{x:Bind ContentOpacity}"
+                      ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                    <FontIcon Glyph="{x:Bind Glyph}" FontSize="16" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                        <TextBlock Text="{x:Bind Subtitle}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                    <ItemsControl Grid.Column="2" ItemsSource="{x:Bind Badges}" IsTabStop="False"
+                                  VerticalAlignment="Center" Visibility="{x:Bind BadgesVisibility}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="4" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <Border CornerRadius="4" Padding="5,0" BorderThickness="1"
+                                        BorderBrush="{ThemeResource AccentFillColorDefaultBrush}">
+                                    <TextBlock Text="{x:Bind}" FontSize="11" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <FontIcon Grid.Column="3" Glyph="&#xE7BA;" FontSize="14" VerticalAlignment="Center"
+                              Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                              Visibility="{x:Bind WarningVisibility}" />
+                    <Border Grid.Column="4" CornerRadius="4" Padding="6,1" VerticalAlignment="Center"
+                            Background="{x:Bind SpeedBrush}" Visibility="{x:Bind SpeedVisibility}">
+                        <TextBlock Text="{x:Bind SpeedBadge}" FontSize="11" FontWeight="SemiBold" Foreground="White" />
+                    </Border>
+                </Grid>
+            </DataTemplate>
+        </Grid.Resources>
+        <Grid.KeyboardAccelerators>
+            <KeyboardAccelerator Key="F" Modifiers="Control" Invoked="FocusSearch_Invoked" />
+            <KeyboardAccelerator Key="S" Modifiers="Control" Invoked="SaveJson_Invoked" />
+        </Grid.KeyboardAccelerators>
+
         <!-- Title bar -->
         <Grid x:Name="AppTitleBar" Height="48" Padding="16,0" ColumnSpacing="12" ColumnDefinitions="Auto,*">
             <FontIcon Glyph="&#xE88E;" FontSize="16" VerticalAlignment="Center" />
@@ -20,7 +63,7 @@
         </Grid>
 
         <!-- Toolbar -->
-        <Grid Grid.Row="1" Padding="16,0,16,12" ColumnSpacing="16" ColumnDefinitions="Auto,Auto,Auto,*">
+        <Grid Grid.Row="1" Padding="16,0,16,12" ColumnSpacing="12" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto,Auto,Auto">
             <Button x:Name="RefreshButton" Click="Refresh_Click" ToolTipService.ToolTip="Refresh (F5)">
                 <Button.KeyboardAccelerators>
                     <KeyboardAccelerator Key="F5" />
@@ -30,18 +73,53 @@
                     <TextBlock Text="Refresh" />
                 </StackPanel>
             </Button>
-            <CheckBox x:Name="ShowEmptyPorts" Grid.Column="1" Content="Show empty ports" Click="ShowEmptyPorts_Click" />
-            <CheckBox x:Name="LiveUpdates" Grid.Column="2" Content="Live updates" IsChecked="True" Click="LiveUpdates_Click"
+            <AutoSuggestBox x:Name="SearchBox" Grid.Column="1" Width="280" VerticalAlignment="Center"
+                            PlaceholderText="Search name, VID:PID, drive, COM…" QueryIcon="Find"
+                            TextChanged="SearchBox_TextChanged" KeyDown="SearchBox_KeyDown"
+                            AutomationProperties.Name="Search devices"
+                            ToolTipService.ToolTip="Search (Ctrl+F). All words must match." />
+            <ToggleButton x:Name="IssuesToggle" Grid.Column="2" Click="IssuesToggle_Click" Visibility="Collapsed"
+                          ToolTipService.ToolTip="Show only devices with warnings">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE7BA;" FontSize="14" Foreground="{ThemeResource SystemFillColorCautionBrush}" />
+                    <TextBlock x:Name="IssuesLabel" Text="Issues" />
+                </StackPanel>
+            </ToggleButton>
+            <CheckBox x:Name="ShowEmptyPorts" Grid.Column="3" Content="Show empty ports" Click="ShowEmptyPorts_Click" />
+            <CheckBox x:Name="LiveUpdates" Grid.Column="4" Content="Live updates" IsChecked="True" Click="LiveUpdates_Click"
                       ToolTipService.ToolTip="Refresh automatically when USB devices are connected or removed" />
-            <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
-                <ProgressRing x:Name="Busy" Width="16" Height="16" IsActive="False" />
-                <TextBlock x:Name="SummaryText" VerticalAlignment="Center"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-            </StackPanel>
+            <ProgressRing x:Name="Busy" Grid.Column="6" Width="16" Height="16" IsActive="False" />
+            <DropDownButton Grid.Column="7" ToolTipService.ToolTip="Save the current snapshot as JSON"
+                            AutomationProperties.Name="Export">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xEDE1;" FontSize="14" />
+                    <TextBlock Text="Export" />
+                </StackPanel>
+                <DropDownButton.Flyout>
+                    <MenuFlyout Placement="BottomEdgeAlignedRight">
+                        <MenuFlyoutItem Text="Save JSON…" Click="ExportJson_Click" KeyboardAcceleratorTextOverride="Ctrl+S">
+                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74E;" /></MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Text="Save JSON with serials masked…" Click="ExportJsonMasked_Click">
+                            <MenuFlyoutItem.Icon><FontIcon Glyph="&#xE72E;" /></MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                    </MenuFlyout>
+                </DropDownButton.Flyout>
+            </DropDownButton>
+            <Button Grid.Column="8" ToolTipService.ToolTip="Appearance" AutomationProperties.Name="Appearance">
+                <FontIcon Glyph="&#xE790;" FontSize="14" />
+                <Button.Flyout>
+                    <MenuFlyout Placement="BottomEdgeAlignedRight">
+                        <RadioMenuFlyoutItem x:Name="ThemeSystem" Text="Use system setting" GroupName="Theme" Tag="System" Click="Theme_Click" />
+                        <RadioMenuFlyoutItem x:Name="ThemeLight" Text="Light" GroupName="Theme" Tag="Light" Click="Theme_Click" />
+                        <RadioMenuFlyoutItem x:Name="ThemeDark" Text="Dark" GroupName="Theme" Tag="Dark" Click="Theme_Click" />
+                    </MenuFlyout>
+                </Button.Flyout>
+            </Button>
         </Grid>
 
         <!-- Body -->
-        <Grid Grid.Row="2" Padding="16,0,16,16" ColumnSpacing="16" RowSpacing="12" RowDefinitions="Auto,*">
+        <Grid Grid.Row="2" Padding="16,0,16,8" ColumnSpacing="16" RowSpacing="12" RowDefinitions="Auto,*">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="5*" MinWidth="320" />
                 <ColumnDefinition Width="6*" MinWidth="360" />
@@ -55,37 +133,25 @@
 
             <!-- Device tree -->
             <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="4,8">
+                <Grid>
+                <TextBlock x:Name="NoMatches" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           TextAlignment="Center" TextWrapping="Wrap" Margin="24"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 <TreeView x:Name="DeviceTree" SelectionMode="Single" CanDragItems="False" CanReorderItems="False"
                           AllowDrop="False" SelectionChanged="DeviceTree_SelectionChanged"
                           Expanding="DeviceTree_Expanding" Collapsed="DeviceTree_Collapsed"
                           AutomationProperties.Name="USB device tree">
                     <TreeView.ItemTemplate>
-                        <DataTemplate x:DataType="vm:UsbNodeViewModel">
-                            <TreeViewItem ItemsSource="{x:Bind Children}"
-                                          IsExpanded="{x:Bind IsExpanded, Mode=OneWay}"
-                                          AutomationProperties.Name="{x:Bind AccessibleName}">
-                                <Grid ColumnSpacing="10" Padding="0,5,14,5" Opacity="{x:Bind ContentOpacity}"
-                                      ColumnDefinitions="Auto,*,Auto,Auto">
-                                    <FontIcon Glyph="{x:Bind Glyph}" FontSize="16" VerticalAlignment="Center" />
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                                        <TextBlock Text="{x:Bind Subtitle}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
-                                                   Style="{StaticResource CaptionTextBlockStyle}"
-                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    </StackPanel>
-                                    <FontIcon Grid.Column="2" Glyph="&#xE7BA;" FontSize="14" VerticalAlignment="Center"
-                                              Foreground="{ThemeResource SystemFillColorCautionBrush}"
-                                              Visibility="{x:Bind WarningVisibility}" />
-                                    <Border Grid.Column="3" CornerRadius="4" Padding="6,1" VerticalAlignment="Center"
-                                            Background="{x:Bind SpeedBrush}" Visibility="{x:Bind SpeedVisibility}">
-                                        <TextBlock Text="{x:Bind SpeedBadge}" FontSize="11" FontWeight="SemiBold"
-                                                   Foreground="White" />
-                                    </Border>
-                                </Grid>
+                        <!-- Node mode: expansion is controlled in code (RebuildTree); see NodeRowTemplate for the row. -->
+                        <DataTemplate x:DataType="TreeViewNode">
+                            <TreeViewItem AutomationProperties.Name="{x:Bind ((vm:UsbNodeViewModel)Content).AccessibleName}">
+                                <ContentControl Content="{x:Bind Content}" ContentTemplate="{StaticResource NodeRowTemplate}"
+                                                IsTabStop="False" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" />
                             </TreeViewItem>
                         </DataTemplate>
                     </TreeView.ItemTemplate>
                 </TreeView>
+                </Grid>
             </Border>
 
             <!-- Details -->
@@ -156,5 +222,10 @@
                 </Grid>
             </Border>
         </Grid>
+
+        <!-- Status line -->
+        <TextBlock x:Name="SummaryText" Grid.Row="3" Margin="20,0,20,10" TextTrimming="CharacterEllipsis"
+                   Style="{StaticResource CaptionTextBlockStyle}"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
     </Grid>
 </Window>

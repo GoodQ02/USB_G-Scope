@@ -1,7 +1,6 @@
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using UsbGScope.Core.Enumeration;
+using UsbGScope.Core.Export;
 using UsbGScope.Core.Model;
 
 var flags = new HashSet<string>(args, StringComparer.OrdinalIgnoreCase);
@@ -24,14 +23,8 @@ if (flags.Contains("--mask-serials"))
 
 if (flags.Contains("--json"))
 {
-    var options = new JsonSerializerOptions
-    {
-        WriteIndented = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        Converters = { new JsonStringEnumConverter() },
-    };
     Console.OutputEncoding = Encoding.UTF8;
-    Console.WriteLine(JsonSerializer.Serialize(snapshot, options));
+    Console.WriteLine(SnapshotJson.Serialize(snapshot));
     return 0;
 }
 

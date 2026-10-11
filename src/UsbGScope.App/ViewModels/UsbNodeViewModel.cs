@@ -20,24 +20,32 @@ public sealed class UsbNodeViewModel
         [UsbSpeed.Unknown] = new(Colors.Transparent),
     };
 
-    public UsbNodeViewModel(UsbNode node, bool showEmptyPorts, string key, IReadOnlySet<string>? collapsed = null)
+    public UsbNodeViewModel(UsbNode node, bool showEmptyPorts, string key,
+                            IReadOnlySet<string>? collapsed = null, IReadOnlySet<string>? visible = null)
     {
         Node = node;
         Key = key;
         Children = node.Children
-            .Select((child, index) => (child, index))
+            .Select((child, index) => (child, index, key: NodePaths.ChildKey(key, child, index)))
             .Where(c => showEmptyPorts || c.child.Kind != UsbNodeKind.EmptyPort || c.child.Error is not null)
-            .Select(c => new UsbNodeViewModel(c.child, showEmptyPorts, NodePaths.ChildKey(key, c.child, c.index), collapsed))
+            .Where(c => visible is null || visible.Contains(c.key))
+            .Select(c => new UsbNodeViewModel(c.child, showEmptyPorts, c.key, collapsed, visible))
             .ToList();
         IsExpanded = node.Kind is UsbNodeKind.HostController or UsbNodeKind.RootHub or UsbNodeKind.Hub
-                     && collapsed?.Contains(key) != true;
+                     && (visible is not null || collapsed?.Contains(key) != true);
 
         string detail = NodePresenter.Subtitle(node);
         Subtitle = node.PortNumber is int port && node.Kind != UsbNodeKind.EmptyPort
             ? (detail.Length > 0 ? $"Port {port} · {detail}" : $"Port {port}")
             : detail;
         Warning = NodePresenter.Warning(node);
+        Badges = NodePresenter.Badges(node);
     }
+
+    /// <summary>Drive letters, COM ports, Type-C.</summary>
+    public IReadOnlyList<string> Badges { get; }
+
+    public Visibility BadgesVisibility => Badges.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
     public UsbNode Node { get; }
 
@@ -67,7 +75,8 @@ public sealed class UsbNodeViewModel
     public double ContentOpacity => Node.Kind == UsbNodeKind.EmptyPort ? 0.55 : 1.0;
 
     public string AccessibleName =>
-        string.Join(", ", new[] { Title, Subtitle, SpeedBadge.Length > 0 ? NodePresenter.SpeedLabel(Node.Speed) : null, Warning }
+        string.Join(", ", new[] { Title, Subtitle, Badges.Count > 0 ? string.Join(" ", Badges) : null,
+                                  SpeedBadge.Length > 0 ? NodePresenter.SpeedLabel(Node.Speed) : null, Warning }
             .Where(s => !string.IsNullOrEmpty(s)));
 
     // Segoe Fluent Icons code points (https://learn.microsoft.com/windows/apps/design/style/segoe-fluent-icons-font).

@@ -107,7 +107,8 @@ public class HotPlugAndResourceTests
             ["COM7"]);
         var node = Device(2, 0x0781, 0x5581, resources);
 
-        Assert.Equal("0781:5581 · E: · COM7 · Desc", NodePresenter.Subtitle(node));
+        Assert.Equal("0781:5581 · Desc", NodePresenter.Subtitle(node));
+        Assert.Equal(["E:", "COM7"], NodePresenter.Badges(node));
 
         var sections = NodePresenter.BuildDetails(node);
         var res = Assert.Single(sections, s => s.Title == "Resources");

@@ -2,7 +2,7 @@
 
 A lightweight, modern USB topology viewer for Windows — a fresh take on tools like Microsoft USBView and UsbTreeView, built with **WinUI 3** and **.NET 10**.
 
-> **Status:** early development. The app shows the live USB tree with speed badges and a details pane, updates itself when devices are plugged in or removed, and maps devices to drive letters, COM ports, and Windows child devices. Search, filtering, and export come next.
+> **Status:** early development. The app shows the live USB tree with speed and resource badges, updates itself when devices are plugged in or removed, maps devices to drive letters, COM ports, and Windows child devices, and supports search (Ctrl+F), an issues-only filter, light/dark themes, and JSON export (Ctrl+S). Release packaging comes next.
 
 ## Goals
 

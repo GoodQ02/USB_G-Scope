@@ -65,11 +65,24 @@ public static class NodePresenter
         _ => string.Join(" · ", new[]
         {
             node.Device is { } d ? $"{d.VendorId:X4}:{d.ProductId:X4}" : null,
-            ResourceSummary(node.Resources),
             node.Kind == UsbNodeKind.Hub && node.Hub is { } hub ? $"{HubTypeLabel(hub.Type)}, {Ports(hub.PortCount)}" : null,
             node.Pnp?.Description is { } desc && !desc.Equals(node.DisplayName, StringComparison.OrdinalIgnoreCase) ? desc : null,
         }.Where(s => s is not null)),
     };
+
+    /// <summary>Short chips shown on a tree row: drive letters, COM ports, and Type-C.</summary>
+    public static IReadOnlyList<string> Badges(UsbNode node)
+    {
+        var badges = new List<string>();
+        if (node.Resources is { } r)
+        {
+            badges.AddRange(r.Drives.Select(d => d.Letter));
+            badges.AddRange(r.ComPorts);
+        }
+        if (node.Kind is UsbNodeKind.Device or UsbNodeKind.Hub && node.Port?.TypeC == true)
+            badges.Add("Type-C");
+        return badges;
+    }
 
     /// <summary>"E: F: · COM3", or null when the device has no drive letters or ports.</summary>
     public static string? ResourceSummary(UsbDeviceResources? resources)
