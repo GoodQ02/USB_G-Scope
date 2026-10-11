@@ -20,6 +20,12 @@ Requirements: Windows 10 1809+ and the .NET 10 SDK.
 dotnet build src/UsbGScope.App -p:Platform=x64
 ```
 
+## Test
+
+```powershell
+dotnet test tests/UsbGScope.Core.Tests
+```
+
 ## Publish a single portable EXE
 
 ```powershell
@@ -49,6 +55,7 @@ dotnet run --project tools/UsbGScope.Cli -- [--all] [--verbose] [--json] [--mask
 src/UsbGScope.Core/    USB enumeration (Win32 interop), descriptor parsing, topology model
 src/UsbGScope.App/     WinUI 3 desktop app
 tools/UsbGScope.Cli/   usbgscope command-line dump (text / JSON)
+tests/UsbGScope.Core.Tests/  unit tests (real descriptor captures in Fixtures/)
 ```
 
 ## License

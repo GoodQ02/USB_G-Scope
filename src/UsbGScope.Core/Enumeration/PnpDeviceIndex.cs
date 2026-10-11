@@ -69,13 +69,17 @@ public sealed class PnpDeviceIndex
     /// Maps a hub symbolic link (e.g. <c>USB#ROOT_HUB30#4&amp;1a2b&amp;0&amp;0#{f18a0e88-...}</c>)
     /// to its device instance ID (<c>USB\ROOT_HUB30\4&amp;1a2b&amp;0&amp;0</c>) and looks it up.
     /// </summary>
-    public PnpDeviceInfo? FindBySymbolicName(string symbolicName)
+    public PnpDeviceInfo? FindBySymbolicName(string symbolicName) =>
+        SymbolicNameToInstanceId(symbolicName) is { } id ? FindByInstanceId(id) : null;
+
+    /// <summary>Converts a device-interface symbolic link to its device instance ID, or null if malformed.</summary>
+    public static string? SymbolicNameToInstanceId(string symbolicName)
     {
         string name = symbolicName;
         if (name.StartsWith(@"\\?\", StringComparison.Ordinal) || name.StartsWith(@"\\.\", StringComparison.Ordinal))
             name = name[4..];
 
         var parts = name.Split('#');
-        return parts.Length >= 4 ? FindByInstanceId(string.Join('\\', parts[..^1])) : null;
+        return parts.Length >= 4 ? string.Join('\\', parts[..^1]) : null;
     }
 }

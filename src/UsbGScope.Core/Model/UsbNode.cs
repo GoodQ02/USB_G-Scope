@@ -1,3 +1,5 @@
+using UsbGScope.Core.Descriptors;
+
 namespace UsbGScope.Core.Model;
 
 /// <summary>Kind of node in the USB topology tree.</summary>
@@ -102,6 +104,10 @@ public sealed record UsbDeviceInfo(
     public string? Product { get; init; }
     public string? SerialNumber { get; init; }
     public int? MaxPowerMilliamps { get; init; }
+    public string ClassName => UsbClassNames.Get(DeviceClass);
+    public ConfigurationDescriptor? Configuration { get; init; }
+    public byte[]? RawDeviceDescriptor { get; init; }
+    public byte[]? RawConfigurationDescriptor { get; init; }
 }
 
 public sealed record UsbHubInfo(UsbHubType Type, int PortCount, bool? BusPowered, string SymbolicName);

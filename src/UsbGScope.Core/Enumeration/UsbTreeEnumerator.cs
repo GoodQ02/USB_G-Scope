@@ -114,11 +114,8 @@ public static class UsbTreeEnumerator
             };
         }
 
-        // V2 flags: bit0 operating at SuperSpeed or higher, bit1 SS capable, bit2 operating at SS+, bit3 SS+ capable.
-        uint flags = v2?.Flags ?? 0;
-        var speed = (flags & 0b0100) != 0 ? UsbSpeed.SuperSpeedPlus
-            : conn.SpeedCode == 3 || (flags & 0b0001) != 0 ? UsbSpeed.SuperSpeed
-            : conn.SpeedCode switch { 0 => UsbSpeed.Low, 1 => UsbSpeed.Full, 2 => UsbSpeed.High, _ => UsbSpeed.Unknown };
+        uint? flags = v2?.Flags;
+        var speed = UsbSpeedResolver.Resolve(conn.SpeedCode, flags);
 
         string? driverKey = UsbIo.GetDriverKeyName(hub, port);
         var pnpInfo = driverKey is null ? null : pnp.FindByDriverKey(driverKey);
@@ -131,10 +128,13 @@ public static class UsbTreeEnumerator
                 dd.VendorId, dd.ProductId,
                 UsbDescriptorParser.FormatBcd(dd.BcdUsb), UsbDescriptorParser.FormatBcd(dd.BcdDevice),
                 dd.DeviceClass, dd.DeviceSubClass, dd.DeviceProtocol, dd.NumConfigurations,
-                conn.DeviceAddress, (int)conn.OpenPipes);
+                conn.DeviceAddress, (int)conn.OpenPipes)
+            {
+                RawDeviceDescriptor = conn.DeviceDescriptor,
+            };
 
             if (conn.Status == UsbConnectionStatus.DeviceConnected)
-                deviceInfo = AddDeviceStrings(hub, port, dd, deviceInfo, speed >= UsbSpeed.SuperSpeed);
+                deviceInfo = AddDescriptorDetails(hub, port, dd, deviceInfo, speed >= UsbSpeed.SuperSpeed);
         }
 
         List<UsbNode> children = [];
@@ -159,8 +159,8 @@ public static class UsbTreeEnumerator
             PortNumber = (int)port,
             ConnectionStatus = conn.Status,
             Speed = speed,
-            SuperSpeedCapable = v2 is null ? null : (flags & 0b0010) != 0,
-            SuperSpeedPlusCapable = v2 is null ? null : (flags & 0b1000) != 0,
+            SuperSpeedCapable = flags is uint f1 ? (f1 & UsbSpeedResolver.SuperSpeedCapableOrHigher) != 0 : null,
+            SuperSpeedPlusCapable = flags is uint f2 ? (f2 & UsbSpeedResolver.SuperSpeedPlusCapableOrHigher) != 0 : null,
             Port = portInfo,
             Device = deviceInfo,
             Hub = childHub,
@@ -169,7 +169,8 @@ public static class UsbTreeEnumerator
         };
     }
 
-    private static UsbDeviceInfo AddDeviceStrings(SafeFileHandle hub, uint port, DeviceDescriptor dd, UsbDeviceInfo info, bool superSpeed)
+    /// <summary>Adds string descriptors and the decoded configuration descriptor set.</summary>
+    private static UsbDeviceInfo AddDescriptorDetails(SafeFileHandle hub, uint port, DeviceDescriptor dd, UsbDeviceInfo info, bool superSpeed)
     {
         bool hasStrings = dd.ManufacturerIndex != 0 || dd.ProductIndex != 0 || dd.SerialNumberIndex != 0;
         ushort language = DefaultLanguageId;
@@ -182,18 +183,18 @@ public static class UsbTreeEnumerator
                 ? UsbDescriptorParser.ParseString(bytes)
                 : null;
 
-        int? maxPower = UsbIo.GetDescriptor(hub, port, UsbDescriptorParser.ConfigurationType, 0, 0, 9) is { } config
-            ? UsbDescriptorParser.ParseMaxPowerMilliamps(config, superSpeed)
-            : null;
+        byte[]? rawConfig = UsbIo.GetConfigurationDescriptor(hub, port);
+        var config = rawConfig is null ? null : ConfigurationDescriptorParser.Parse(rawConfig);
 
         return info with
         {
             Manufacturer = ReadString(dd.ManufacturerIndex),
             Product = ReadString(dd.ProductIndex),
             SerialNumber = ReadString(dd.SerialNumberIndex),
-            MaxPowerMilliamps = maxPower,
+            MaxPowerMilliamps = config?.MaxPowerMilliamps(superSpeed),
+            Configuration = config,
+            RawConfigurationDescriptor = rawConfig,
         };
     }
-
     private static string Win32Message(int error) => $"{new Win32Exception(error).Message} (0x{error:X})";
 }

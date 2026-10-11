@@ -116,9 +116,24 @@ IEnumerable<string> Details(UsbNode n)
 {
     if (n.Device is { } d)
     {
-        yield return $"USB {d.UsbVersion} · class {d.DeviceClass:X2}/{d.DeviceSubClass:X2}/{d.DeviceProtocol:X2} · rev {d.DeviceVersion} · addr {d.DeviceAddress}";
+        yield return $"USB {d.UsbVersion} · {d.ClassName} ({d.DeviceClass:X2}/{d.DeviceSubClass:X2}/{d.DeviceProtocol:X2}) · rev {d.DeviceVersion} · addr {d.DeviceAddress}";
         if (d.Manufacturer is not null) yield return $"Manufacturer: {d.Manufacturer}";
         if (d.SerialNumber is not null) yield return $"Serial: {d.SerialNumber}";
+        if (d.Configuration is { } c)
+        {
+            yield return $"Config {c.ConfigurationValue}: {(c.SelfPowered ? "self-powered" : "bus-powered")}"
+                         + (c.RemoteWakeup ? " · remote wakeup" : "")
+                         + (c.IsTruncated ? " · ⚠ truncated" : "");
+            foreach (var a in c.Associations)
+                yield return $"  Function: interfaces {a.FirstInterface}-{a.FirstInterface + a.InterfaceCount - 1} · {a.ClassName}";
+            foreach (var i in c.Interfaces)
+            {
+                string eps = string.Join(", ", i.Endpoints.Select(e =>
+                    $"EP{e.Number} {(e.IsIn ? "IN" : "OUT")} {e.TransferType.ToString().ToLowerInvariant()} {e.PacketBytes}B"));
+                yield return $"  Interface {i.InterfaceNumber}.{i.AlternateSetting}: {i.ClassName} {i.InterfaceSubClass:X2}/{i.InterfaceProtocol:X2}"
+                             + (eps.Length > 0 ? $" · {eps}" : "");
+            }
+        }
     }
     if (n.Pnp is { } p)
     {

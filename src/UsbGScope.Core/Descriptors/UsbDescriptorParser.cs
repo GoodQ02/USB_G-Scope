@@ -67,17 +67,6 @@ public static class UsbDescriptorParser
         return BinaryPrimitives.ReadUInt16LittleEndian(data[2..]);
     }
 
-    /// <summary>
-    /// Max power from a configuration descriptor header, in mA.
-    /// bMaxPower is in 2 mA units at USB 2.0 speeds and 8 mA units at SuperSpeed.
-    /// </summary>
-    public static int? ParseMaxPowerMilliamps(ReadOnlySpan<byte> data, bool superSpeed)
-    {
-        if (data.Length < 9 || data[1] != ConfigurationType)
-            return null;
-        return data[8] * (superSpeed ? 8 : 2);
-    }
-
     /// <summary>Formats a BCD version such as 0x0320 as "3.20".</summary>
     public static string FormatBcd(ushort bcd) => $"{bcd >> 8:X}.{bcd & 0xFF:X2}";
 }

@@ -9,4 +9,8 @@
     <DebugType>embedded</DebugType>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="UsbGScope.Core.Tests" />
+  </ItemGroup>
+
 </Project>
