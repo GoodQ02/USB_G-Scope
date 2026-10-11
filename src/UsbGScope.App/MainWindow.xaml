@@ -3,40 +3,152 @@
     x:Class="UsbGScope.App.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:UsbGScope.App.ViewModels"
+    xmlns:pres="using:UsbGScope.Core.Presentation"
     Title="USB_G-Scope">
 
     <Window.SystemBackdrop>
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid RowDefinitions="Auto,*">
-        <!-- Custom title bar area -->
+    <Grid RowDefinitions="Auto,Auto,*">
+        <!-- Title bar -->
         <Grid x:Name="AppTitleBar" Height="48" Padding="16,0" ColumnSpacing="12" ColumnDefinitions="Auto,*">
             <FontIcon Glyph="&#xE88E;" FontSize="16" VerticalAlignment="Center" />
             <TextBlock Grid.Column="1" Text="USB_G-Scope" VerticalAlignment="Center"
                        Style="{StaticResource CaptionTextBlockStyle}" />
         </Grid>
 
-        <!-- Body: tree on the left, details on the right (populated in later milestones) -->
-        <Grid Grid.Row="1" Padding="16" ColumnSpacing="16" ColumnDefinitions="2*,3*">
-            <Border CornerRadius="8" Padding="16"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="USB topology" Style="{StaticResource SubtitleTextBlockStyle}" />
-                    <TextBlock Text="Device enumeration arrives in milestone 1."
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+        <!-- Toolbar -->
+        <Grid Grid.Row="1" Padding="16,0,16,12" ColumnSpacing="16" ColumnDefinitions="Auto,Auto,*">
+            <Button x:Name="RefreshButton" Click="Refresh_Click" ToolTipService.ToolTip="Refresh (F5)">
+                <Button.KeyboardAccelerators>
+                    <KeyboardAccelerator Key="F5" />
+                </Button.KeyboardAccelerators>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE72C;" FontSize="14" />
+                    <TextBlock Text="Refresh" />
                 </StackPanel>
+            </Button>
+            <CheckBox x:Name="ShowEmptyPorts" Grid.Column="1" Content="Show empty ports" Click="ShowEmptyPorts_Click" />
+            <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                <ProgressRing x:Name="Busy" Width="16" Height="16" IsActive="False" />
+                <TextBlock x:Name="SummaryText" VerticalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Body -->
+        <Grid Grid.Row="2" Padding="16,0,16,16" ColumnSpacing="16" RowSpacing="12" RowDefinitions="Auto,*">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="5*" MinWidth="320" />
+                <ColumnDefinition Width="6*" MinWidth="360" />
+            </Grid.ColumnDefinitions>
+
+            <InfoBar x:Name="LoadError" Grid.ColumnSpan="2" Severity="Error" IsClosable="True"
+                     Title="Could not read USB devices" />
+
+            <!-- Device tree -->
+            <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="4,8">
+                <TreeView x:Name="DeviceTree" SelectionMode="Single" CanDragItems="False" CanReorderItems="False"
+                          AllowDrop="False" SelectionChanged="DeviceTree_SelectionChanged"
+                          Expanding="DeviceTree_Expanding" Collapsed="DeviceTree_Collapsed"
+                          AutomationProperties.Name="USB device tree">
+                    <TreeView.ItemTemplate>
+                        <DataTemplate x:DataType="vm:UsbNodeViewModel">
+                            <TreeViewItem ItemsSource="{x:Bind Children}"
+                                          IsExpanded="{x:Bind IsExpanded, Mode=OneWay}"
+                                          AutomationProperties.Name="{x:Bind AccessibleName}">
+                                <Grid ColumnSpacing="10" Padding="0,5,14,5" Opacity="{x:Bind ContentOpacity}"
+                                      ColumnDefinitions="Auto,*,Auto,Auto">
+                                    <FontIcon Glyph="{x:Bind Glyph}" FontSize="16" VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                        <TextBlock Text="{x:Bind Subtitle}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                    <FontIcon Grid.Column="2" Glyph="&#xE7BA;" FontSize="14" VerticalAlignment="Center"
+                                              Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                              Visibility="{x:Bind WarningVisibility}" />
+                                    <Border Grid.Column="3" CornerRadius="4" Padding="6,1" VerticalAlignment="Center"
+                                            Background="{x:Bind SpeedBrush}" Visibility="{x:Bind SpeedVisibility}">
+                                        <TextBlock Text="{x:Bind SpeedBadge}" FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="White" />
+                                    </Border>
+                                </Grid>
+                            </TreeViewItem>
+                        </DataTemplate>
+                    </TreeView.ItemTemplate>
+                </TreeView>
             </Border>
 
-            <Border Grid.Column="1" CornerRadius="8" Padding="16"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="Details" Style="{StaticResource SubtitleTextBlockStyle}" />
-                    <TextBlock Text="Select a device to inspect its descriptors, speed, and power."
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                </StackPanel>
+            <!-- Details -->
+            <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource CardStyle}">
+                <Grid>
+                    <StackPanel x:Name="EmptyDetails" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10">
+                        <FontIcon Glyph="&#xE88E;" FontSize="40" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                        <TextBlock Text="Select a device to see its details" HorizontalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+
+                    <ScrollViewer x:Name="DetailsScroller" Visibility="Collapsed" Padding="24,20,24,20">
+                        <StackPanel Spacing="16">
+                            <Grid ColumnSpacing="16" ColumnDefinitions="Auto,*,Auto">
+                                <Border Width="52" Height="52" CornerRadius="10"
+                                        Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                                    <FontIcon x:Name="DetailGlyph" FontSize="26" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock x:Name="DetailTitle" Style="{StaticResource SubtitleTextBlockStyle}"
+                                               TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                    <TextBlock x:Name="DetailSubtitle" TextWrapping="Wrap"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                                <Button x:Name="CopyButton" Grid.Column="2" VerticalAlignment="Top" Click="Copy_Click"
+                                        ToolTipService.ToolTip="Copy all details as text (Ctrl+Shift+C)">
+                                    <Button.KeyboardAccelerators>
+                                        <KeyboardAccelerator Key="C" Modifiers="Control,Shift" />
+                                    </Button.KeyboardAccelerators>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE8C8;" FontSize="14" />
+                                        <TextBlock x:Name="CopyLabel" Text="Copy" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+
+                            <InfoBar x:Name="DetailWarning" Severity="Warning" IsClosable="False" />
+
+                            <ItemsControl x:Name="DetailSections" IsTabStop="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="pres:DetailSection">
+                                        <StackPanel Spacing="6" Margin="0,0,0,18">
+                                            <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                            <ItemsControl ItemsSource="{x:Bind Rows}" IsTabStop="False">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="pres:DetailRow">
+                                                        <Grid ColumnSpacing="16" Padding="0,3" ColumnDefinitions="170,*">
+                                                            <TextBlock Text="{x:Bind Label}" TextWrapping="Wrap"
+                                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                            <TextBlock Grid.Column="1" Text="{x:Bind Value}" TextWrapping="Wrap"
+                                                                       IsTextSelectionEnabled="True" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Expander x:Name="RawExpander" Header="Raw descriptors"
+                                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <TextBlock x:Name="RawText" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                                           IsTextSelectionEnabled="True" TextWrapping="NoWrap" />
+                            </Expander>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
             </Border>
         </Grid>
     </Grid>

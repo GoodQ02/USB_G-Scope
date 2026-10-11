@@ -2,7 +2,7 @@
 
 A lightweight, modern USB topology viewer for Windows — a fresh take on tools like Microsoft USBView and UsbTreeView, built with **WinUI 3** and **.NET 10**.
 
-> **Status:** early development. USB enumeration works and is exposed through a command-line tool; the WinUI tree view comes next.
+> **Status:** early development. The app shows the live USB tree with speed badges and a details pane; hot-plug refresh comes next.
 
 ## Goals
 
