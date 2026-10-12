@@ -1,4 +1,6 @@
+using UsbGScope.Core.Aliases;
 using UsbGScope.Core.Descriptors;
+using UsbGScope.Core.Presentation;
 
 namespace UsbGScope.Core.Model;
 
@@ -54,6 +56,9 @@ public sealed record UsbNode(
     string DisplayName,
     IReadOnlyList<UsbNode> Children)
 {
+    /// <summary>User-assigned custom friendly nickname, persisted locally.</summary>
+    public string? CustomAlias { get; init; }
+
     /// <summary>1-based port number on the parent hub (null for controllers and root hubs).</summary>
     public int? PortNumber { get; init; }
     public UsbConnectionStatus? ConnectionStatus { get; init; }
@@ -156,6 +161,24 @@ public sealed record UsbSnapshot(DateTimeOffset CapturedAt, IReadOnlyList<UsbNod
             for (int i = node.Children.Count - 1; i >= 0; i--)
                 stack.Push(node.Children[i]);
         }
+    }
+
+    /// <summary>Copy with user-defined friendly nicknames attached to matching nodes.</summary>
+    public UsbSnapshot ApplyAliases(DeviceAliasStore store) =>
+        this with { Controllers = Controllers.Select((c, i) => ApplyNodeAliases(c, NodePaths.ControllerKey(i), store)).ToList() };
+
+    private static UsbNode ApplyNodeAliases(UsbNode node, string pathKey, DeviceAliasStore store)
+    {
+        var alias = store.GetAlias(node, pathKey);
+        var children = node.Children
+            .Select((child, index) => ApplyNodeAliases(child, NodePaths.ChildKey(pathKey, child, index), store))
+            .ToList();
+
+        return node with
+        {
+            CustomAlias = alias,
+            Children = children,
+        };
     }
 
     /// <summary>Copy with serial numbers (and serial-bearing instance IDs) replaced, safe for sharing.</summary>

@@ -51,6 +51,7 @@ public static class NodeFilter
     {
         var parts = new List<string?>
         {
+            node.CustomAlias,
             node.DisplayName,
             NodePresenter.Subtitle(node),
             node.PortNumber is int p ? $"Port {p}" : null,

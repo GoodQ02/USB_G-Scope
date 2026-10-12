@@ -3,9 +3,11 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.Windows.Storage.Pickers;
 using UsbGScope.App.Services;
 using UsbGScope.App.ViewModels;
+using UsbGScope.Core.Aliases;
 using UsbGScope.Core.Enumeration;
 using UsbGScope.Core.Export;
 using UsbGScope.Core.Model;
@@ -23,10 +25,12 @@ public sealed partial class MainWindow : Window
     private bool _refreshing;
     private bool _refreshPending;
     private bool _rebuilding;
+    private bool _dialogOpen;
     private UsbChangeWatcher? _watcher;
     private readonly HashSet<string> _collapsed = new(StringComparer.Ordinal);
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _changeBarTimer;
     private readonly AppSettings _settings = AppSettings.Load();
+    private readonly DeviceAliasStore _aliasStore = DeviceAliasStore.Instance;
 
     public MainWindow()
     {
@@ -114,6 +118,8 @@ public sealed partial class MainWindow : Window
             var stopwatch = Stopwatch.StartNew();
             var snapshot = await Task.Run(UsbTreeEnumerator.Capture);
             stopwatch.Stop();
+
+            snapshot = snapshot.ApplyAliases(_aliasStore);
 
             var previous = _snapshot;
             _snapshot = snapshot;
@@ -260,6 +266,8 @@ public sealed partial class MainWindow : Window
         DetailGlyph.Glyph = vm.Glyph;
         DetailTitle.Text = vm.Title;
         DetailSubtitle.Text = vm.Subtitle;
+        EditAliasButton.Visibility = vm.Node.Kind != UsbNodeKind.EmptyPort ? Visibility.Visible : Visibility.Collapsed;
+        ToolTipService.SetToolTip(EditAliasButton, vm.Node.CustomAlias is not null ? "Edit nickname (F2)" : "Set nickname (F2)");
 
         DetailWarning.Message = vm.Warning ?? "";
         DetailWarning.IsOpen = vm.Warning is not null;
@@ -425,5 +433,187 @@ public sealed partial class MainWindow : Window
         CopyLabel.Text = "Copied";
         await Task.Delay(1500);
         CopyLabel.Text = "Copy";
+    }
+
+    private void NodeContextMenu_Opening(object? sender, object e)
+    {
+        if (sender is MenuFlyout flyout)
+        {
+            bool hasAlias = _selected?.Node.CustomAlias is not null;
+            bool canRename = _selected is not null && _selected.Node.Kind != UsbNodeKind.EmptyPort;
+            foreach (var item in flyout.Items)
+            {
+                if (item is MenuFlyoutItem mfi)
+                {
+                    if (mfi.Tag as string == "SetAlias")
+                    {
+                        mfi.Text = hasAlias ? "Edit nickname…" : "Set nickname…";
+                        mfi.IsEnabled = canRename;
+                    }
+                    else if (mfi.Tag as string == "RemoveAlias")
+                    {
+                        mfi.Visibility = hasAlias ? Visibility.Visible : Visibility.Collapsed;
+                    }
+                }
+            }
+        }
+    }
+
+    private void NodeRow_RightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is UsbNodeViewModel vm)
+        {
+            var treeNode = Find(DeviceTree.RootNodes, vm.Key);
+            if (treeNode is not null)
+            {
+                DeviceTree.SelectedNode = treeNode;
+                ShowDetails(vm);
+            }
+        }
+    }
+
+    private async void EditAlias_Click(object sender, RoutedEventArgs e) => await ShowRenameDialogAsync(_selected);
+
+    private async void SetNickname_Click(object sender, RoutedEventArgs e) => await ShowRenameDialogAsync(_selected);
+
+    private void RemoveNickname_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selected is null) return;
+        var saveKey = DeviceAliasKeys.GetPrimarySaveKey(_selected.Node, _selected.Key);
+        _aliasStore.RemoveAlias(saveKey);
+        RefreshAliasesAndRebuild();
+        ShowChange("Nickname removed", $"Restored original name for {_selected.Node.DisplayName}", InfoBarSeverity.Informational);
+    }
+
+    private async void Rename_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled = true;
+        await ShowRenameDialogAsync(_selected);
+    }
+
+    private async Task ShowRenameDialogAsync(UsbNodeViewModel? vm)
+    {
+        if (vm is null || vm.Node.Kind == UsbNodeKind.EmptyPort || _dialogOpen)
+            return;
+
+        _dialogOpen = true;
+        try
+        {
+            var node = vm.Node;
+            var saveKey = DeviceAliasKeys.GetPrimarySaveKey(node, vm.Key);
+            var currentAlias = node.CustomAlias ?? "";
+
+            var input = new TextBox
+            {
+                Text = currentAlias,
+                PlaceholderText = "e.g. Work Headset, Backup Drive, Desk Hub",
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Margin = new Thickness(0, 8, 0, 8),
+            };
+            input.SelectAll();
+
+            var hasSerial = DeviceAliasKeys.GetDeviceSerialKey(node) is not null;
+            string scopeNote = hasSerial
+                ? "✓ Unique serial detected: this nickname will follow the device if moved to another port."
+                : (node.Kind == UsbNodeKind.Device
+                    ? "ℹ No serial number: nickname is tied to this device instance and port location."
+                    : "ℹ Stored locally for this topology node.");
+
+            var content = new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = $"Hardware: {node.DisplayName}",
+                        Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+                        Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+                    },
+                    input,
+                    new TextBlock
+                    {
+                        Text = scopeNote,
+                        Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+                        Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    new TextBlock
+                    {
+                        Text = "Stored locally on this PC; does not modify hardware or the Windows registry.",
+                        Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"],
+                        Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                },
+            };
+
+            var dialog = new ContentDialog
+            {
+                XamlRoot = RootGrid.XamlRoot,
+                Title = string.IsNullOrEmpty(currentAlias) ? "Set Device Nickname" : "Edit Device Nickname",
+                PrimaryButtonText = "Save",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
+                Content = content,
+            };
+
+            if (!string.IsNullOrEmpty(currentAlias))
+            {
+                dialog.SecondaryButtonText = "Remove Nickname";
+            }
+
+            input.KeyDown += (s, e) =>
+            {
+                if (e.Key == Windows.System.VirtualKey.Enter)
+                {
+                    dialog.Hide();
+                    SaveOrRemoveAlias(saveKey, input.Text, node.DisplayName);
+                    e.Handled = true;
+                }
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                SaveOrRemoveAlias(saveKey, input.Text, node.DisplayName);
+            }
+            else if (result == ContentDialogResult.Secondary)
+            {
+                _aliasStore.RemoveAlias(saveKey);
+                RefreshAliasesAndRebuild();
+                ShowChange("Nickname removed", $"Restored original name for {node.DisplayName}", InfoBarSeverity.Informational);
+            }
+        }
+        finally
+        {
+            _dialogOpen = false;
+        }
+    }
+
+    private void SaveOrRemoveAlias(string saveKey, string text, string hardwareName)
+    {
+        string trimmed = text.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            _aliasStore.RemoveAlias(saveKey);
+            RefreshAliasesAndRebuild();
+            ShowChange("Nickname removed", $"Restored original name for {hardwareName}", InfoBarSeverity.Informational);
+        }
+        else
+        {
+            _aliasStore.SetAlias(saveKey, trimmed);
+            RefreshAliasesAndRebuild();
+            ShowChange("Nickname saved", $"\"{trimmed}\" saved for {hardwareName}", InfoBarSeverity.Success);
+        }
+    }
+
+    private void RefreshAliasesAndRebuild()
+    {
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot.ApplyAliases(_aliasStore);
+            RebuildTree();
+        }
     }
 }

@@ -56,7 +56,9 @@ public sealed class UsbNodeViewModel
 
     public bool IsExpanded { get; set; }
 
-    public string Title => Node.DisplayName;
+    public string Title => Node.CustomAlias ?? Node.DisplayName;
+
+    public string? CustomAlias => Node.CustomAlias;
 
     public string Subtitle { get; }
 
@@ -75,9 +77,13 @@ public sealed class UsbNodeViewModel
     public double ContentOpacity => Node.Kind == UsbNodeKind.EmptyPort ? 0.55 : 1.0;
 
     public string AccessibleName =>
-        string.Join(", ", new[] { Title, Subtitle, Badges.Count > 0 ? string.Join(" ", Badges) : null,
-                                  SpeedBadge.Length > 0 ? NodePresenter.SpeedLabel(Node.Speed) : null, Warning }
-            .Where(s => !string.IsNullOrEmpty(s)));
+        string.Join(", ", new[] {
+            Node.CustomAlias is not null ? $"{Node.CustomAlias} (hardware: {Node.DisplayName})" : Title,
+            Subtitle,
+            Badges.Count > 0 ? string.Join(" ", Badges) : null,
+            SpeedBadge.Length > 0 ? NodePresenter.SpeedLabel(Node.Speed) : null,
+            Warning
+        }.Where(s => !string.IsNullOrEmpty(s)));
 
     // Segoe Fluent Icons code points (https://learn.microsoft.com/windows/apps/design/style/segoe-fluent-icons-font).
     public static string GlyphFor(DeviceCategory category) => category switch

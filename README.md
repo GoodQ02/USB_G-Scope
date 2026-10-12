@@ -12,6 +12,7 @@ A lightweight, modern USB topology viewer for Windows — a fresh take on tools 
 - **Hot-plug watcher:** Automatic background debounced refresh on device arrival/removal with non-intrusive connect/disconnect notifications.
 - **Descriptor decoding:** Full device and configuration descriptor breakdown with endpoint attributes and hex viewer.
 - **Search & filter:** Multi-word search across names, VID:PID, drive letters, and ports; instant issues toggle for devices reporting Windows errors or speed downgrades.
+- **Device nicknames:** Assign custom friendly names (F2, right-click, or details header) that persist across app launches in local JSON. Never touches hardware firmware or the Windows Registry (strictly read-only and zero-admin). Automatically follows devices with unique serial numbers across different USB ports.
 - **Privacy & export:** Full JSON export (Ctrl+S) with one-click serial masking.
 - **Standalone:** Ships as a self-contained, single-file executable requiring no installation or admin elevation.
 

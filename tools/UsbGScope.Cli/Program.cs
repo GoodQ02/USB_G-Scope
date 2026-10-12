@@ -1,4 +1,5 @@
 using System.Text;
+using UsbGScope.Core.Aliases;
 using UsbGScope.Core.Enumeration;
 using UsbGScope.Core.Export;
 using UsbGScope.Core.Model;
@@ -18,6 +19,7 @@ if (flags.Contains("-h") || flags.Contains("--help"))
 }
 
 var snapshot = UsbTreeEnumerator.Capture();
+snapshot = snapshot.ApplyAliases(DeviceAliasStore.Instance);
 if (flags.Contains("--mask-serials"))
     snapshot = snapshot.MaskSerials();
 
@@ -83,7 +85,10 @@ string Describe(UsbNode n)
             sb.Append(PortTags(n.Port));
             break;
         default:
-            sb.Append(n.DisplayName);
+            if (n.CustomAlias is not null)
+                sb.Append($"\"{n.CustomAlias}\" ({n.DisplayName})");
+            else
+                sb.Append(n.DisplayName);
             if (n.Device is { } d)
                 sb.Append($"  {d.VendorId:X4}:{d.ProductId:X4}");
             if (UsbGScope.Core.Presentation.NodePresenter.ResourceSummary(n.Resources) is { } res)

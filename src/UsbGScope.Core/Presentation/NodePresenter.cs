@@ -57,18 +57,28 @@ public static class NodePresenter
     };
 
     /// <summary>Second line shown under a node's name in the tree.</summary>
-    public static string Subtitle(UsbNode node) => node.Kind switch
+    public static string Subtitle(UsbNode node)
     {
-        UsbNodeKind.HostController => node.Pnp?.Service is { } svc ? $"Host controller · {svc}" : "Host controller",
-        UsbNodeKind.RootHub => node.Hub is { } h ? Ports(h.PortCount) : "Root hub",
-        UsbNodeKind.EmptyPort => PortCapabilities(node.Port) is { Length: > 0 } caps ? caps : "Empty port",
-        _ => string.Join(" · ", new[]
+        string baseSub = node.Kind switch
         {
-            node.Device is { } d ? $"{d.VendorId:X4}:{d.ProductId:X4}" : null,
-            node.Kind == UsbNodeKind.Hub && node.Hub is { } hub ? $"{HubTypeLabel(hub.Type)}, {Ports(hub.PortCount)}" : null,
-            node.Pnp?.Description is { } desc && !desc.Equals(node.DisplayName, StringComparison.OrdinalIgnoreCase) ? desc : null,
-        }.Where(s => s is not null)),
-    };
+            UsbNodeKind.HostController => node.Pnp?.Service is { } svc ? $"Host controller · {svc}" : "Host controller",
+            UsbNodeKind.RootHub => node.Hub is { } h ? Ports(h.PortCount) : "Root hub",
+            UsbNodeKind.EmptyPort => PortCapabilities(node.Port) is { Length: > 0 } caps ? caps : "Empty port",
+            _ => string.Join(" · ", new[]
+            {
+                node.Device is { } d ? $"{d.VendorId:X4}:{d.ProductId:X4}" : null,
+                node.Kind == UsbNodeKind.Hub && node.Hub is { } hub ? $"{HubTypeLabel(hub.Type)}, {Ports(hub.PortCount)}" : null,
+                node.Pnp?.Description is { } desc && !desc.Equals(node.DisplayName, StringComparison.OrdinalIgnoreCase) ? desc : null,
+            }.Where(s => s is not null)),
+        };
+
+        if (node.CustomAlias is not null)
+        {
+            return baseSub.Length > 0 ? $"{node.DisplayName} · {baseSub}" : node.DisplayName;
+        }
+
+        return baseSub;
+    }
 
     /// <summary>Short chips shown on a tree row: drive letters, COM ports, and Type-C.</summary>
     public static IReadOnlyList<string> Badges(UsbNode node)
@@ -151,7 +161,17 @@ public static class NodePresenter
     {
         var sections = new List<DetailSection>();
 
-        var overview = new List<DetailRow> { new("Name", node.DisplayName), new("Type", KindLabel(node.Kind)) };
+        var overview = new List<DetailRow>();
+        if (node.CustomAlias is not null)
+        {
+            overview.Add(new("Nickname", node.CustomAlias));
+            overview.Add(new("Hardware name", node.DisplayName));
+        }
+        else
+        {
+            overview.Add(new("Name", node.DisplayName));
+        }
+        overview.Add(new("Type", KindLabel(node.Kind)));
         if (node.PortNumber is int port) overview.Add(new("Port", port.ToString()));
         if (node.ConnectionStatus is { } status && status != UsbConnectionStatus.DeviceConnected)
             overview.Add(new("Status", status.ToString()));
