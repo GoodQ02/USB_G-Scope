@@ -193,6 +193,21 @@ public sealed class DeviceAliasStore
         Save();
     }
 
+    /// <summary>
+    /// Removes any alias associated with any of the candidate lookup keys for this node.
+    /// </summary>
+    public void RemoveAliasForNode(UsbNode node, string? nodePath = null)
+    {
+        lock (_lock)
+        {
+            foreach (var key in DeviceAliasKeys.GetLookupKeys(node, nodePath))
+            {
+                _aliases.Remove(key);
+            }
+        }
+        Save();
+    }
+
     public void Clear()
     {
         lock (_lock)

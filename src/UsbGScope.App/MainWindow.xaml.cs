@@ -49,7 +49,11 @@ public sealed partial class MainWindow : Window
         LiveUpdates.IsChecked = _settings.LiveUpdates;
         ApplyTheme(_settings.Theme);
 
-        Closed += (_, _) => StopWatcher();
+        Closed += (_, _) =>
+        {
+            StopWatcher();
+            _changeBarTimer.Stop();
+        };
         if (_settings.LiveUpdates)
             StartWatcher();
         _ = RefreshAsync();
@@ -394,6 +398,8 @@ public sealed partial class MainWindow : Window
     {
         if (AsViewModel(args.AddedItems.FirstOrDefault()) is { } vm)
             ShowDetails(vm);
+        else if (sender.SelectedNode is null && !_rebuilding)
+            ShowDetails(null);
     }
 
     private void DeviceTree_Expanding(TreeView sender, TreeViewExpandingEventArgs args) =>
@@ -459,9 +465,15 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void NodeRow_RightTapped(object sender, RightTappedRoutedEventArgs e)
+    private void NodeRow_RightTapped(object sender, RightTappedRoutedEventArgs e) =>
+        SelectNodeFromElement(sender as FrameworkElement);
+
+    private void NodeRow_ContextRequested(UIElement sender, ContextRequestedEventArgs args) =>
+        SelectNodeFromElement(sender as FrameworkElement);
+
+    private void SelectNodeFromElement(FrameworkElement? element)
     {
-        if ((sender as FrameworkElement)?.DataContext is UsbNodeViewModel vm)
+        if (element?.DataContext is UsbNodeViewModel vm)
         {
             var treeNode = Find(DeviceTree.RootNodes, vm.Key);
             if (treeNode is not null)
@@ -479,8 +491,7 @@ public sealed partial class MainWindow : Window
     private void RemoveNickname_Click(object sender, RoutedEventArgs e)
     {
         if (_selected is null) return;
-        var saveKey = DeviceAliasKeys.GetPrimarySaveKey(_selected.Node, _selected.Key);
-        _aliasStore.RemoveAlias(saveKey);
+        _aliasStore.RemoveAliasForNode(_selected.Node, _selected.Key);
         RefreshAliasesAndRebuild();
         ShowChange("Nickname removed", $"Restored original name for {_selected.Node.DisplayName}", InfoBarSeverity.Informational);
     }
@@ -563,26 +574,31 @@ public sealed partial class MainWindow : Window
                 dialog.SecondaryButtonText = "Remove Nickname";
             }
 
+            bool handled = false;
             input.KeyDown += (s, e) =>
             {
                 if (e.Key == Windows.System.VirtualKey.Enter)
                 {
+                    handled = true;
                     dialog.Hide();
-                    SaveOrRemoveAlias(saveKey, input.Text, node.DisplayName);
+                    SaveOrRemoveAlias(node, vm.Key, saveKey, input.Text);
                     e.Handled = true;
                 }
             };
 
             var result = await dialog.ShowAsync();
-            if (result == ContentDialogResult.Primary)
+            if (!handled)
             {
-                SaveOrRemoveAlias(saveKey, input.Text, node.DisplayName);
-            }
-            else if (result == ContentDialogResult.Secondary)
-            {
-                _aliasStore.RemoveAlias(saveKey);
-                RefreshAliasesAndRebuild();
-                ShowChange("Nickname removed", $"Restored original name for {node.DisplayName}", InfoBarSeverity.Informational);
+                if (result == ContentDialogResult.Primary)
+                {
+                    SaveOrRemoveAlias(node, vm.Key, saveKey, input.Text);
+                }
+                else if (result == ContentDialogResult.Secondary)
+                {
+                    _aliasStore.RemoveAliasForNode(node, vm.Key);
+                    RefreshAliasesAndRebuild();
+                    ShowChange("Nickname removed", $"Restored original name for {node.DisplayName}", InfoBarSeverity.Informational);
+                }
             }
         }
         finally
@@ -591,20 +607,20 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void SaveOrRemoveAlias(string saveKey, string text, string hardwareName)
+    private void SaveOrRemoveAlias(UsbNode node, string nodePath, string saveKey, string text)
     {
         string trimmed = text.Trim();
         if (string.IsNullOrEmpty(trimmed))
         {
-            _aliasStore.RemoveAlias(saveKey);
+            _aliasStore.RemoveAliasForNode(node, nodePath);
             RefreshAliasesAndRebuild();
-            ShowChange("Nickname removed", $"Restored original name for {hardwareName}", InfoBarSeverity.Informational);
+            ShowChange("Nickname removed", $"Restored original name for {node.DisplayName}", InfoBarSeverity.Informational);
         }
         else
         {
             _aliasStore.SetAlias(saveKey, trimmed);
             RefreshAliasesAndRebuild();
-            ShowChange("Nickname saved", $"\"{trimmed}\" saved for {hardwareName}", InfoBarSeverity.Success);
+            ShowChange("Nickname saved", $"\"{trimmed}\" saved for {node.DisplayName}", InfoBarSeverity.Success);
         }
     }
 

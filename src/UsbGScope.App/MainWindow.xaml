@@ -32,7 +32,8 @@
                 <Grid ColumnSpacing="10" Padding="0,5,14,5" Opacity="{x:Bind ContentOpacity}"
                       ColumnDefinitions="Auto,*,Auto,Auto,Auto"
                       ContextFlyout="{StaticResource NodeContextMenu}"
-                      RightTapped="NodeRow_RightTapped">
+                      RightTapped="NodeRow_RightTapped"
+                      ContextRequested="NodeRow_ContextRequested">
                     <FontIcon Glyph="{x:Bind Glyph}" FontSize="16" VerticalAlignment="Center" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />

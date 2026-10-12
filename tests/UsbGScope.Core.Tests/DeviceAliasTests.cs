@@ -165,4 +165,20 @@ public class DeviceAliasTests
         string plainJson = SnapshotJson.Serialize(plainSnapshot);
         Assert.DoesNotContain("\"CustomAlias\"", plainJson);
     }
+
+    [Fact]
+    public void DeviceAliasStore_RemoveAliasForNode_clears_all_candidate_keys()
+    {
+        var store = new DeviceAliasStore(filePath: null);
+        var node = CreateDevice(1, 0x046D, 0xC52B, "Wireless Receiver", serial: "SN888", instanceId: @"USB\VID_046D&PID_C52B\1");
+
+        store.SetAlias(DeviceAliasKeys.GetDeviceSerialKey(node)!, "Alias By Serial");
+        store.SetAlias(DeviceAliasKeys.GetInstanceIdKey(node)!, "Alias By Instance");
+        Assert.NotNull(store.GetAlias(node, "c0/0/1"));
+
+        store.RemoveAliasForNode(node, "c0/0/1");
+        Assert.Null(store.GetAlias(node, "c0/0/1"));
+        Assert.Null(store.GetAliasByKey("sn:046D:C52B:SN888"));
+        Assert.Null(store.GetAliasByKey(@"id:USB\VID_046D&PID_C52B\1"));
+    }
 }
