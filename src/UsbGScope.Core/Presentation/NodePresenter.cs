@@ -16,8 +16,12 @@ public enum DeviceCategory
     EmptyPort,
     Keyboard,
     Mouse,
+    GameController,
+    Microphone,
+    Headset,
     Hid,
     Video,
+    Display,
     Audio,
     Storage,
     Bluetooth,
@@ -131,6 +135,14 @@ public static class NodePresenter
         if (d is null)
             return DeviceCategory.Other;
 
+        string hint = string.Join(" ", new[]
+        {
+            d.Product,
+            node.DisplayName,
+            node.Pnp?.Description,
+            node.Resources?.ChildDevices.FirstOrDefault()?.Description
+        }.Where(s => !string.IsNullOrEmpty(s))).ToLowerInvariant();
+
         var interfaces = d.Configuration?.Interfaces.Where(i => i.AlternateSetting == 0).ToList() ?? [];
         var classes = d.DeviceClass is 0x00 or 0xEF
             ? interfaces.Select(i => i.InterfaceClass).ToHashSet()
@@ -139,20 +151,49 @@ public static class NodePresenter
         if (classes.Contains(0xE0) || string.Equals(node.Pnp?.Service, "BTHUSB", StringComparison.OrdinalIgnoreCase))
             return DeviceCategory.Bluetooth;
         if (classes.Contains(0x0E)) return DeviceCategory.Video;
-        if (classes.Contains(0x01)) return DeviceCategory.Audio;
         if (classes.Contains(0x08)) return DeviceCategory.Storage;
         if (classes.Contains(0x07)) return DeviceCategory.Printer;
+
+        if (classes.Contains(0x01))
+        {
+            if (hint.Contains("microphone") || hint.Contains(" mic"))
+                return DeviceCategory.Microphone;
+            if (hint.Contains("headset") || hint.Contains("headphone"))
+                return DeviceCategory.Headset;
+            return DeviceCategory.Audio;
+        }
+
         if (classes.Contains(0x03))
         {
             // HID boot protocol: 1 = keyboard, 2 = mouse (subclass 1 = boot interface).
             var boot = interfaces.FirstOrDefault(i => i.InterfaceClass == 0x03 && i.InterfaceSubClass == 1);
-            return boot?.InterfaceProtocol switch
-            {
-                1 => DeviceCategory.Keyboard,
-                2 => DeviceCategory.Mouse,
-                _ => DeviceCategory.Hid,
-            };
+            if (boot?.InterfaceProtocol == 1) return DeviceCategory.Keyboard;
+            if (boot?.InterfaceProtocol == 2) return DeviceCategory.Mouse;
+
+            if (hint.Contains("keyboard") || hint.Contains("numpad") || hint.Contains("keypad") || hint.Contains("tkl"))
+                return DeviceCategory.Keyboard;
+            if (hint.Contains("mouse") || hint.Contains("trackball") || hint.Contains("trackpad"))
+                return DeviceCategory.Mouse;
+            if (hint.Contains("arcade stick") || hint.Contains("gamepad") || hint.Contains("joystick") || hint.Contains("xbox"))
+                return DeviceCategory.GameController;
+
+            return DeviceCategory.Hid;
         }
+
+        if (hint.Contains("keyboard") || hint.Contains("numpad") || hint.Contains("keypad") || hint.Contains("tkl"))
+            return DeviceCategory.Keyboard;
+        if (hint.Contains("mouse") || hint.Contains("trackball") || hint.Contains("trackpad") || hint.Contains("lightspeed"))
+            return DeviceCategory.Mouse;
+        if (hint.Contains("arcade stick") || hint.Contains("gamepad") || hint.Contains("joystick") || hint.Contains("xbox") || hint.Contains("playstation link"))
+            return DeviceCategory.GameController;
+        if (hint.Contains("microphone") || hint.Contains(" mic"))
+            return DeviceCategory.Microphone;
+        if (hint.Contains("headset") || hint.Contains("headphone"))
+            return DeviceCategory.Headset;
+        if (hint.Contains("webcam") || hint.Contains("camera"))
+            return DeviceCategory.Video;
+        if (hint.Contains("display") || hint.Contains("monitor") || hint.Contains("screen"))
+            return DeviceCategory.Display;
 
         return DeviceCategory.Other;
     }

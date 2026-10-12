@@ -72,6 +72,8 @@ public sealed class UsbNodeViewModel
 
     public Visibility SpeedVisibility => SpeedBadge.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
+    public Visibility AliasBadgeVisibility => Node.CustomAlias is not null ? Visibility.Visible : Visibility.Collapsed;
+
     public Visibility WarningVisibility => Warning is null ? Visibility.Collapsed : Visibility.Visible;
 
     public double ContentOpacity => Node.Kind == UsbNodeKind.EmptyPort ? 0.55 : 1.0;
@@ -88,17 +90,21 @@ public sealed class UsbNodeViewModel
     // Segoe Fluent Icons code points (https://learn.microsoft.com/windows/apps/design/style/segoe-fluent-icons-font).
     public static string GlyphFor(DeviceCategory category) => category switch
     {
-        DeviceCategory.Controller => "\uE950", // Component
-        DeviceCategory.Hub => "\uE88E",        // USB
-        DeviceCategory.EmptyPort => "\uE88E",  // USB (dimmed)
-        DeviceCategory.Keyboard => "\uE765",   // KeyboardClassic
-        DeviceCategory.Mouse => "\uE962",      // Mouse
-        DeviceCategory.Hid => "\uE7FC",        // Game
-        DeviceCategory.Video => "\uE8B8",      // Webcam
-        DeviceCategory.Audio => "\uE767",      // Volume
-        DeviceCategory.Storage => "\uEDA2",    // HardDrive
-        DeviceCategory.Bluetooth => "\uE702",  // Bluetooth
-        DeviceCategory.Printer => "\uE749",    // Print
-        _ => "\uE772",                         // Devices
+        DeviceCategory.Controller => "\uE950",     // Component
+        DeviceCategory.Hub => "\uE88E",            // USB
+        DeviceCategory.EmptyPort => "\uE718",      // CircleRing (subtle empty port)
+        DeviceCategory.Keyboard => "\uE765",       // KeyboardClassic
+        DeviceCategory.Mouse => "\uE962",          // Mouse
+        DeviceCategory.GameController => "\uE7FC",  // Game
+        DeviceCategory.Microphone => "\uE720",      // Microphone
+        DeviceCategory.Headset => "\uE95B",         // Headset
+        DeviceCategory.Audio => "\uE767",          // Volume
+        DeviceCategory.Video => "\uE8B8",          // Webcam
+        DeviceCategory.Display => "\uE7F4",        // TVMonitor
+        DeviceCategory.Storage => "\uEDA2",        // HardDrive
+        DeviceCategory.Bluetooth => "\uE702",      // Bluetooth
+        DeviceCategory.Printer => "\uE749",        // Print
+        DeviceCategory.Hid => "\uE7FC",            // Game
+        _ => "\uE772",                             // Devices
     };
 }

@@ -92,4 +92,18 @@ public class NodePresenterTests
 
         Assert.Equal("USB 3 · USB 2 · Type-C", NodePresenter.Subtitle(port));
     }
+
+    [Theory]
+    [InlineData("USB Condenser Microphone", DeviceCategory.Microphone)]
+    [InlineData("Wireless Gaming Headset", DeviceCategory.Headset)]
+    [InlineData("8BitDo Ultimate Wireless Gamepad", DeviceCategory.GameController)]
+    [InlineData("USB-C Portable Display", DeviceCategory.Display)]
+    public void Categorizes_specialized_devices_by_hints(string displayName, DeviceCategory expected)
+    {
+        var node = new UsbNode(UsbNodeKind.Device, displayName, [])
+        {
+            Device = new UsbDeviceInfo(0x1234, 0x5678, "2.00", "1.00", 0, 0, 0, 1, 0, 0),
+        };
+        Assert.Equal(expected, NodePresenter.Categorize(node));
+    }
 }

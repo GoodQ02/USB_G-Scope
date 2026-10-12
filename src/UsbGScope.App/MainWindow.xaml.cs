@@ -26,6 +26,7 @@ public sealed partial class MainWindow : Window
     private bool _refreshPending;
     private bool _rebuilding;
     private bool _dialogOpen;
+    private long _lastElapsedMs;
     private UsbChangeWatcher? _watcher;
     private readonly HashSet<string> _collapsed = new(StringComparer.Ordinal);
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _changeBarTimer;
@@ -122,6 +123,7 @@ public sealed partial class MainWindow : Window
             var stopwatch = Stopwatch.StartNew();
             var snapshot = await Task.Run(UsbTreeEnumerator.Capture);
             stopwatch.Stop();
+            _lastElapsedMs = stopwatch.ElapsedMilliseconds;
 
             snapshot = snapshot.ApplyAliases(_aliasStore);
 
@@ -129,7 +131,6 @@ public sealed partial class MainWindow : Window
             _snapshot = snapshot;
             LoadError.IsOpen = false;
             RebuildTree();
-            SummaryText.Text = Summarize(snapshot, stopwatch.ElapsedMilliseconds);
 
             if (previous is not null && NodePaths.Diff(previous, snapshot) is { IsEmpty: false } diff)
                 AnnounceDiff(diff, snapshot.CapturedAt);
@@ -222,12 +223,35 @@ public sealed partial class MainWindow : Window
             ? "No devices with issues."
             : $"No devices match \"{query.Trim()}\".";
 
+        UpdateSummary(visible, query, issuesOnly);
+
         var match = selectedKey is null ? null : Find(DeviceTree.RootNodes, selectedKey);
         ShowDetails(match?.Content as UsbNodeViewModel);
         if (match is not null)
         {
             // Containers may not be realized yet; the details pane is already correct either way.
             DispatcherQueue.TryEnqueue(() => DeviceTree.SelectedNode = match);
+        }
+    }
+
+    private void UpdateSummary(IReadOnlySet<string>? visible, string query, bool issuesOnly)
+    {
+        if (_snapshot is null)
+            return;
+
+        if (visible is not null)
+        {
+            var allDevices = _snapshot.Flatten().Where(n => n.Kind == UsbNodeKind.Device).ToList();
+            var tokens = NodeFilter.Tokenize(query);
+            int matched = allDevices.Count(n => NodeFilter.Matches(n, tokens, issuesOnly));
+            string filterDesc = issuesOnly
+                ? (tokens.Length > 0 ? $"issues & \"{query.Trim()}\"" : "issues")
+                : $"\"{query.Trim()}\"";
+            SummaryText.Text = $"{matched} of {allDevices.Count} devices match {filterDesc} · updated {_snapshot.CapturedAt.LocalDateTime:T}";
+        }
+        else
+        {
+            SummaryText.Text = Summarize(_snapshot, _lastElapsedMs);
         }
     }
 
@@ -439,6 +463,17 @@ public sealed partial class MainWindow : Window
         CopyLabel.Text = "Copied";
         await Task.Delay(1500);
         CopyLabel.Text = "Copy";
+    }
+
+    private void CopyDetailValue_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuFlyoutItem { DataContext: DetailRow row } && !string.IsNullOrEmpty(row.Value))
+        {
+            var package = new DataPackage();
+            package.SetText(row.Value);
+            Clipboard.SetContent(package);
+            ShowChange("Copied to clipboard", $"{row.Label}: {row.Value}", InfoBarSeverity.Informational);
+        }
     }
 
     private void NodeContextMenu_Opening(object? sender, object e)
